@@ -1,16 +1,37 @@
 import sys
 import asyncio
-from typing import Any
+from typing import Any, cast
 import httpx
 from pathlib import Path
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
-from langchain.chat_models import init_chat_model
 
 sys.path.insert(
     0, str(Path(__file__).parents[1])
 )  # need this because this isn't a proper module
 from config import config
+from llm import llm
+
+### For service 1 - HN digest - we aren't using a tool, but simply returning the output of the sevrice
+class DigestIntent(BaseModel):
+    # Use our LLM to determine whether the user is asking for a hackernews digest or not.
+    # yes, we could potentially use a keyword-based approach here, but we like to throw AI at the problem.
+    is_digest_request: bool = Field(description="Is the user asking for a HackerNews digest?")
+    topic: str | None = Field(default=None, description="What topic, if any, is the user asking about? Just return the topic, no extra words. If not a digest request, do not return a value.")
+
+def is_digest_request(query: str) -> tuple[bool, str | None]:
+    # truncating for safety bc we don't want to blow the context if the user pastes in "war and peace"
+    truncated = query[:100]
+
+    _digest_classifier = llm.with_structured_output(DigestIntent)
+
+    _digest_system = SystemMessage(
+        "Is the user asking for a HackerNews digest about a specific topic?"
+        "Respond with structured output."
+    )
+
+    result = cast(DigestIntent, _digest_classifier.invoke([_digest_system, HumanMessage(truncated)])) # cast just to placate the type checker
+    return result.is_digest_request, result.topic
 
 
 class HackerNewsQueryParams(BaseModel):
@@ -58,19 +79,12 @@ async def _get_hn_articles(
         return [HackerNewsArticle(**story_data) for story_data in articles]
 
 
-def hackernews_digest(query: str) -> Any:  # will deal with typing someday i'm sure
+def fetch_hn_digest(query: str | None) -> Any:  # will deal with typing someday i'm sure
     """
     Fetch recent HackerNews articles matching the query and summarize the top stories.
     """
     articles = asyncio.run(
-        _get_hn_articles(HackerNewsQueryParams(query=query, tags=["story"]))
-    )
-
-    llm = init_chat_model(
-        model=config.chat_model,
-        api_key=config.api_gateway_key,  # can be empty bc we use the header, but we'll experiment with other providers so might as well use it
-        base_url=config.openai_base_url,
-        default_headers={"x-api-key": config.api_gateway_key},
+        _get_hn_articles(HackerNewsQueryParams(query=query or "", tags=["story"]))
     )
 
     system_prompt = (
@@ -83,7 +97,7 @@ def hackernews_digest(query: str) -> Any:  # will deal with typing someday i'm s
     )
 
     articles_text = "\n\n".join(
-        f"Title: {a.title}\nAuthor: {a.author}\nDate: {a.date}\nText: {a.text or 'N/A'} \nLink: https://news.ycombinator.com/item?id={a.story_id}"
+        f"Title: {a.title}\nAuthor: {a.author}\nDate: {a.date}\nText: {a.text or 'N/A'} \n\nLink: https://news.ycombinator.com/item?id={a.story_id}"
         for a in articles
     )
     user_message = (
@@ -102,5 +116,5 @@ def hackernews_digest(query: str) -> Any:  # will deal with typing someday i'm s
 # testing
 if __name__ == "__main__":
     query = "artificial intelligence"
-    results = hackernews_digest(query)
+    results = fetch_hn_digest(query)
     print(results)
