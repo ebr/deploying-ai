@@ -5,6 +5,7 @@ import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
+from prompts import make_system_message, prompt_hn_digest_system_message
 
 sys.path.insert(
     0, str(Path(__file__).parents[1])
@@ -87,15 +88,6 @@ def fetch_hn_digest(query: str | None) -> Any:  # will deal with typing someday 
         _get_hn_articles(HackerNewsQueryParams(query=query or "", tags=["story"]))
     )
 
-    system_prompt = (
-        "You are a helpful assistant that summarizes HackerNews stories."
-        "Identify the 4-5 most important stories and explain why each is significant."
-        "Provide a one-sentence summary and a two-paragraph analysis for each key story, highlighting the main points and implications."
-        "Mention the author and the date of each story"
-        "Ensure that the analysis includes some opinion on the potential impact of the story on the relevant industry, geopolitics, and broader society."
-        "Finish each entry with a link to the original story."
-    )
-
     articles_text = "\n\n".join(
         f"Title: {a.title}\nAuthor: {a.author}\nDate: {a.date}\nText: {a.text or 'N/A'} \n\nLink: https://news.ycombinator.com/item?id={a.story_id}"
         for a in articles
@@ -106,7 +98,7 @@ def fetch_hn_digest(query: str | None) -> Any:  # will deal with typing someday 
 
     response = llm.invoke(
         [
-            SystemMessage(content=system_prompt),
+            make_system_message(prompt_hn_digest_system_message),
             HumanMessage(content=user_message),
         ]
     )
