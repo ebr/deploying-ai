@@ -6,6 +6,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
 from prompts import make_system_message, prompt_hn_digest_system_message
+from .rag import embed_article
 
 sys.path.insert(
     0, str(Path(__file__).parents[1])
@@ -48,6 +49,7 @@ class HackerNewsArticle(BaseModel):
     title: str
     text: str | None
     date: str | None = None
+    url: str | None = None
 
 
 async def _get_hn_articles(
@@ -72,6 +74,7 @@ async def _get_hn_articles(
                 "author": item.get("author"),
                 "title": item.get("title"),
                 "text": item.get("story_text"),
+                "url": item.get("url"),
                 "date": item.get("created_at"),
             }
             for item in resp.json().get("hits", [])
@@ -87,6 +90,12 @@ def fetch_hn_digest(query: str | None) -> Any:  # will deal with typing someday 
     articles = asyncio.run(
         _get_hn_articles(HackerNewsQueryParams(query=query or "", tags=["story"]))
     )
+
+    # embed the articles for rag
+    # yes, this is super side-effect-y and not great design
+    # will do for the assignment
+    for article in articles:
+        embed_article(article.url)
 
     articles_text = "\n\n".join(
         f"Title: {a.title}\nAuthor: {a.author}\nDate: {a.date}\nText: {a.text or 'N/A'} \n\nLink: https://news.ycombinator.com/item?id={a.story_id}"
