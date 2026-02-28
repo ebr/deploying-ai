@@ -8,7 +8,7 @@ This chat app facilitates getting some highlights from HackerNews (optionally re
 
 > [INFO] I used the chromaDB instance stood up by `docker compose`, as this was more familiar to me than the in-process(?) db with file-based persistence suggested by the assignment instructions. To start the DB, `cd 05_src/deploying_ai_data` and run `docker compose up -d`. The connection string is hardcoded in the app.
 
-Because we use langchain Agent class (via `create_agent` factory), tool use is trivial.
+Because we use langchain `create_agent` factory, which takes a list of tools, tool use is trivial.
 
 Likewise, since we use Gradio's `ChatInterface`, the message history automatically gets passed back in with every request, eliminating the need for manual setup. We simply iterate over that list to get previous User and Assistant messages, and insert them into the context between the system prompt and the new user prompt. The need to build either of these functionalities manually was not specified in the assignment, so I went ahead and used methods provided by the packages.
 
@@ -105,6 +105,8 @@ The rest of the messages are appended to the user message, and in case of the RA
 ### Setup
 
 see `.env.example`. Create a `.env` with your config variables. a Tavily API key is required.
+
+`cd 05_src/deploying_ai_data` and `docker compose up -d` to create your chromadb instance.
 
 ### Run it
 
