@@ -2,7 +2,6 @@ import hashlib
 
 import chromadb
 from chromadb import EmbeddingFunction, Documents
-from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from pydantic import SecretStr
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -48,17 +47,15 @@ def embed_article(docs: list | None) -> None:
     )
 
 
-
-def _retrieve(query: str, k: int = 5) -> list[str]:
+def _retrieve_from_vectorstore(query: str, k: int = 5) -> list[str]:
     # retrieve relevant chunks from chroma
     results = collection.query(query_texts=[query], n_results=k)
     return results["documents"][0] if results["documents"] else []
 
 
-@tool
 def retrieve_rag(query: str) -> str | None:
     """Retrieve relevant content from the vector store using semantic search."""
-    chunks = _retrieve(query)
+    chunks = _retrieve_from_vectorstore(query)
     if not chunks:
         return None
     return "\n\n---\n\n".join(chunks)

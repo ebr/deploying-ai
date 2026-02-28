@@ -1,5 +1,5 @@
 import gradio as gr
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain.agents import create_agent
 
 from prompts import make_system_message
@@ -8,7 +8,7 @@ from llm import llm
 from services.hackernews_digest import is_digest_request, fetch_hn_digest
 from services.rag import retrieve_rag
 
-tools = [retrieve_rag]
+tools = []
 
 agent = create_agent(
     llm,
@@ -31,11 +31,10 @@ def chat(message: str, history: list) -> str:
     # the user didn't ask for the news digest.
     # do we know anything about their query from our RAG tool? Use service #2 to find out
 
+    rag_result = retrieve_rag(message)
+    # rag_result=None
 
-
-    # fallback - just respond to the message.
-    system_message = make_system_message()
-    result = agent.invoke({"messages": [system_message, HumanMessage(message)]})
+    result = agent.invoke(input={"messages": [make_system_message(), AIMessage(f"{rag_result}"), HumanMessage(message)]})
     return result["messages"][-1].content
 
 app = gr.ChatInterface(fn=chat, title="🍀 HackerNews Evil Leprechaun 🍀")
