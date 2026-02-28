@@ -3,9 +3,14 @@ import asyncio
 from typing import Any, cast
 import httpx
 from pathlib import Path
+from langchain_community.document_loaders import WebBaseLoader
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
-from prompts import make_system_message, prompt_hn_digest_system_message
+from prompts import (
+    make_system_message,
+    prompt_hn_digest_system_message,
+    prompt_system_message_digest_classifier,
+)
 from .rag import embed_article
 
 sys.path.insert(
@@ -14,12 +19,19 @@ sys.path.insert(
 from config import config
 from llm import llm
 
+
 ### For service 1 - HN digest - we aren't using a tool, but simply returning the output of the sevrice
 class DigestIntent(BaseModel):
     # Use our LLM to determine whether the user is asking for a hackernews digest or not.
     # yes, we could potentially use a keyword-based approach here, but we like to throw AI at the problem.
-    is_digest_request: bool = Field(description="Is the user asking for a HackerNews digest?")
-    topic: str | None = Field(default=None, description="What topic, if any, is the user asking about? Just return the topic, no extra words. If not a digest request, do not return a value.")
+    is_digest_request: bool = Field(
+        description="Is the user asking for a HackerNews digest?"
+    )
+    topic: str | None = Field(
+        default=None,
+        description="What topic, if any, is the user asking about? Just return the topic, no extra words. If not a digest request, do not return a value.",
+    )
+
 
 def is_digest_request(query: str) -> tuple[bool, str | None]:
     # truncating for safety bc we don't want to blow the context if the user pastes in "war and peace"
@@ -27,12 +39,15 @@ def is_digest_request(query: str) -> tuple[bool, str | None]:
 
     _digest_classifier = llm.with_structured_output(DigestIntent)
 
-    _digest_system = SystemMessage(
-        "Is the user asking for a HackerNews digest about a specific topic?"
-        "Respond with structured output."
-    )
-
-    result = cast(DigestIntent, _digest_classifier.invoke([_digest_system, HumanMessage(truncated)])) # cast just to placate the type checker
+    result = cast(
+        DigestIntent,
+        _digest_classifier.invoke(
+            [
+                SystemMessage(prompt_system_message_digest_classifier),
+                HumanMessage(truncated),
+            ]
+        ),
+    )  # cast just to placate the type checker
     return result.is_digest_request, result.topic
 
 
@@ -91,11 +106,11 @@ def fetch_hn_digest(query: str | None) -> Any:  # will deal with typing someday 
         _get_hn_articles(HackerNewsQueryParams(query=query or "", tags=["story"]))
     )
 
-    # embed the articles for rag
-    # yes, this is super side-effect-y and not great design
-    # will do for the assignment
+    # embed the article's content for RAG - using Service #2
     for article in articles:
-        embed_article(article.url)
+        if article.url:
+            docs = WebBaseLoader(article.url).load()
+            embed_article(docs=docs)
 
     articles_text = "\n\n".join(
         f"Title: {a.title}\nAuthor: {a.author}\nDate: {a.date}\nText: {a.text or 'N/A'} \n\nLink: https://news.ycombinator.com/item?id={a.story_id}"

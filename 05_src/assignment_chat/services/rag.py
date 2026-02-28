@@ -1,9 +1,10 @@
+import hashlib
+
 import chromadb
 from chromadb import EmbeddingFunction, Documents
 from langchain_core.tools import tool
 from langchain_openai import OpenAIEmbeddings
 from pydantic import SecretStr
-from langchain_community.document_loaders import WebBaseLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 from config import config
@@ -32,22 +33,20 @@ collection = chroma_client.get_or_create_collection(
     embedding_function=_EmbeddingFunction(),
 )
 
+splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=30)
 
-def embed_article(url: str | None) -> None:
-    if url is None:
+def embed_article(docs: list | None) -> None:
+    if docs is None:
         # nothing to do
         return
 
-    # load the article content right in here
-    # not good practice as this is side effect-y, but i was running out of time
-    docs = WebBaseLoader(url).load()
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     chunks = splitter.split_documents(docs)
-    collection.add(
-        ids=[f"{url}_{i}" for i in range(len(chunks))],
+    collection.upsert( # upsert so we don't get duplicate id errors
+        # chunk ids based on hash of page content, to avoid duplicates
+        ids=[hashlib.md5(chunk.page_content.encode()).hexdigest() for chunk in chunks],
         documents=[chunk.page_content for chunk in chunks],
-        metadatas=[{"source": url} for _ in chunks],
     )
+
 
 
 def _retrieve(query: str, k: int = 5) -> list[str]:
@@ -57,9 +56,9 @@ def _retrieve(query: str, k: int = 5) -> list[str]:
 
 
 @tool
-def retrieve_rag(query: str) -> str:
-    """Retrieve relevant HackerNews content from the local vector store using semantic search."""
+def retrieve_rag(query: str) -> str | None:
+    """Retrieve relevant content from the vector store using semantic search."""
     chunks = _retrieve(query)
     if not chunks:
-        return "No relevant content found."
+        return None
     return "\n\n---\n\n".join(chunks)

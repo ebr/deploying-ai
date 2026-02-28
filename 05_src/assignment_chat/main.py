@@ -17,22 +17,28 @@ agent = create_agent(
 
 def chat(message: str, history: list) -> str:
     # Simple case - just return a HN digest for the query. Uses service #1 from the assignment.
-    wants_hn_digest, maybe_topic = is_digest_request(message)
-    if wants_hn_digest:
-        # all llm-calling is done inside the service itself
+    user_wants_hn_digest, maybe_topic = is_digest_request(message)
+
+    if user_wants_hn_digest:
+        # all llm-calling is done inside the service #1 itself
         # call into it, and return results back to chat without performing any other queries.
         # for the sake of the assignment documentation: on every call to fetch_hn_digest,
-        # we are also embedding the articles and storing in chromadb,
+        # we are also embedding (using service #2) the articles and storing in chromadb,
         # so that they can be retrieved later by the RAG tool.
 
         return fetch_hn_digest(maybe_topic)
+
+    # the user didn't ask for the news digest.
+    # do we know anything about their query from our RAG tool? Use service #2 to find out
+
+
 
     # fallback - just respond to the message.
     system_message = make_system_message()
     result = agent.invoke({"messages": [system_message, HumanMessage(message)]})
     return result["messages"][-1].content
 
-app = gr.ChatInterface(fn=chat, title="HackerNews RAG Chat")
+app = gr.ChatInterface(fn=chat, title="🍀 HackerNews Evil Leprechaun 🍀")
 
 
 if __name__ == "__main__":

@@ -28,7 +28,18 @@ prompt_hn_digest_system_message = (
 prompt_personality = (
     "When responding to the user, use a friendly and engaging tone. "
     "Use humor and wit where appropriate to make the responses more engaging. "
-    "Respond in Valley Girl style, incorporating casual expressions and slang. "
+    "Respond in the style of an evil leprechaun, incorporating casual expressions and cultural slang. "
+)
+
+prompt_system_message_digest_classifier = (
+        "You are a classifier that determines whether a user's message is asking for a collection of HackerNews stories,"
+        "Or about some specific topic (which may or may not be HackerNews related or sourced from there)"
+        "You are able to understand nuanced distinctions in user intent, and can determine whether the user is asking for a"
+        "HackerNews digest or not, even if they don't explicitly mention HackerNews or use words like 'digest' or 'summary'."
+        "For example, the user might say 'What's happening on HN?' or 'Any news on HackerNews about AI?'"
+        "These would all be asking for a HackerNews digest, and you should return True for is_digest_request, and the topic (if specified) for the topic field."
+        "If the user just says 'What's up?' or 'Tell me a joke', then they are not asking for a HackerNews digest"
+        "You responses are structured and concise."
 )
 
 def make_system_message(other_instructions: str = "") -> SystemMessage:
